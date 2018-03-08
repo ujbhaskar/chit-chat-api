@@ -106,6 +106,40 @@ module.exports = function(io){
             });
         });
     });
+    router.post('/updateUser', function (req, res, next) {
+        console.log('***************************************************************************************************************************************************************************************************************************************');  
+        console.log('req.body: ' , req.body);  
+        console.log('***************************************************************************************************************************************************************************************************************************************');  
+        var decoded = jwt.decode(req.query.token);        
+        if(!decoded){
+            return res.status(401).json({
+                title: 'Not Authenticated',
+                error: {message: 'Invalid Token!'}
+            });
+        }
+        var updateBody = {
+            firstName: req.body.firstName,
+            lastName: req.body.lastName,
+            country: req.body.country,
+            state: req.body.state,
+            city: req.body.city            
+        };        
+        User.updateOne(
+            {"email":req.body.email},
+            {$set:updateBody},
+            function(err, result) {
+            if (err) {
+                return res.status(500).json({
+                    title: 'An error occurred',
+                    error: err
+                });
+            }
+            res.status(200).json({
+                message: 'User created',
+                obj: result
+            });
+        });
+    });
     router.get('/updateAll',function(req,res,next){
         User.find({})
         .exec(function(err,users){
@@ -307,7 +341,8 @@ module.exports = function(io){
                         isOnline: user.isOnline,
                         buddies: user.buddies,
                         city: user.city,
-                        country: user.country
+                        country: user.country,
+                        state: user.state
                     }
                 });
             });
