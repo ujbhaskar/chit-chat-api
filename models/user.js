@@ -7,7 +7,10 @@ var schema = new Schema({
     lastName: {type: String, required: true},
     password: {type: String, required: true},
     email: {type: String, required: true, unique: true},
-    isOnline: {type:String, default: 'no'}
+    isOnline: {type:String, default: 'no'},
+    buddies: [{type:String}],
+    city: {type:String},
+    country: {type:String}
 });
 
 schema.plugin(mongooseUniqueValidator);

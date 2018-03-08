@@ -126,6 +126,113 @@ module.exports = function(io){
         });
 
     });
+    router.post('/deleteBuddy',function(req,res,next){
+        console.log('req.body: ' , req.body);        
+        var decoded = jwt.decode(req.query.token);        
+        if(!decoded){
+            return res.status(401).json({
+                title: 'Not Authenticated',
+                error: {message: 'Invalid Token!'}
+            });
+        }
+              
+        User.findOne({email:decoded.user.email})
+            .exec(function (err, user) {
+                if (err) {
+                    return res.status(500).json({
+                        title: 'An error occurred',
+                        error: err
+                    });
+                }
+                var buddy = req.body.buddy;
+                var index = user.buddies.indexOf(buddy);
+                if(index>=0){
+                    user.buddies.splice(index, 1);
+                }
+                user.save(function(err, result) {
+                    if (err) {
+                        return res.status(500).json({
+                            title: 'An error occurred',
+                            error: err
+                        });
+                    }
+                    res.status(200).json({
+                        message: 'Buddy added!!',
+                        obj: result
+                    });
+                });
+            });
+
+    });
+    router.post('/addBuddy',function(req,res,next){
+        console.log('req.body: ' , req.body);        
+        var decoded = jwt.decode(req.query.token);        
+        if(!decoded){
+            return res.status(401).json({
+                title: 'Not Authenticated',
+                error: {message: 'Invalid Token!'}
+            });
+        }
+              
+        User.findOne({email:decoded.user.email})
+            .exec(function (err, user) {
+                if (err) {
+                    return res.status(500).json({
+                        title: 'An error occurred',
+                        error: err
+                    });
+                }
+                var buddy = req.body.buddy;
+                if(user.buddies.indexOf(buddy)==-1){
+                    user.buddies.push(buddy);
+                }
+                user.save(function(err, result) {
+                    if (err) {
+                        return res.status(500).json({
+                            title: 'An error occurred',
+                            error: err
+                        });
+                    }
+                    res.status(200).json({
+                        message: 'Buddy added!!',
+                        obj: result
+                    });
+                });
+            });
+
+    });
+    router.get('/getBuddies',function(req,res,next){        
+        var decoded = jwt.decode(req.query.token);        
+        if(!decoded){
+            return res.status(401).json({
+                title: 'Not Authenticated',
+                error: {message: 'Invalid Token!'}
+            });
+        }        
+        User.findOne({email:decoded.user.email})
+            .exec(function (err, user) {
+                if (err) {
+                    return res.status(500).json({
+                        title: 'An error occurred',
+                        error: err
+                    });
+                }
+                User.find({email:{$in: user.buddies}}).select('firstName lastName email isOnline city country -_id')
+                .exec(function (err, users) {
+                    if (err) {
+                        return res.status(500).json({
+                            title: 'An error occurred',
+                            error: err
+                        });
+                    }
+                    // setTimeout(function(){io.sockets.emit('getUserList')},1000);
+                    res.status(200).json({
+                        message: 'Success',
+                        obj: users
+                    });
+                });
+            });
+    });
     router.post('/getUsers', function (req, res, next) {
 		
 		console.log(' in get call req : ' , req.body);
@@ -149,7 +256,7 @@ module.exports = function(io){
                 error: {message: 'Invalid Token!'}
             });
         }
-        User.find(searchQuery).where("email").ne(decoded.user.email).select('firstName lastName email isOnline -_id')
+        User.find(searchQuery).where("email").ne(decoded.user.email).select('firstName lastName email isOnline city country -_id')
             .exec(function (err, users) {
                 if (err) {
                     return res.status(500).json({
@@ -197,7 +304,10 @@ module.exports = function(io){
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email,
-                        isOnline: user.isOnline
+                        isOnline: user.isOnline,
+                        buddies: user.buddies,
+                        city: user.city,
+                        country: user.country
                     }
                 });
             });
