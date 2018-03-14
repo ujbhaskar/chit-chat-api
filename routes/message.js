@@ -3,30 +3,42 @@ var router = express.Router();
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 var mongoose = require('mongoose');
-
+var logger = require('../logger');
 var Message = require('../models/message');
+
+setTimeout(function(){
+    logger = require('../logger');
+},1000*60*60*1);
 
 module.exports = function(io){
 
 	var count = 0;
     io.on('connection', function (socket) {
     	socket.on('messagesSeen',function(obj){
+			// logger.info('/////////////////////////////');
+			logger.info('messagesSeen : ' , obj);
+			// logger.info('/////////////////////////////');
     		Message.find({sender:obj.sender,receiver:[obj.receiver],seen:false})
     		.exec(function(err,messages){
+				// logger.info('messages: ', messages);
     			count = 0;
     			for(var i = 0;i<messages.length;i++){
     				(function(message,total){
     					message.seen = true;
     					message.save(function(err,result){
     						if(err){
-    							console.log('err occured : ' , err);
+    							// logger.info('err occured : ' , err);
     						}
     						else{
+								// logger.info('result: ' , result);
     							count++;
     							if(count === total){
 	                    			setTimeout(function(){
+										// logger.info('---------------------------******************--------');
 	                    				io.sockets.emit('messageSeen'+obj.sender+'->'+obj.receiver);
+										logger.info('messageSeen'+obj.sender+'->'+obj.receiver);
 	                    				io.sockets.emit('readMessage'+obj.receiver);
+										// logger.info('***************---------------------*****************')
 	                    			},100);  
 	                    		}
     						}
@@ -37,7 +49,7 @@ module.exports = function(io){
     	});
     });
 
-	router.post('/', function(req, res, next) {
+	router.post('/', function(req, res, next) {		
         var token = req.query.token;
         if(token){
             jwt.verify(req.query.token, 'secret', function (err, decoded) {
@@ -55,6 +67,7 @@ module.exports = function(io){
 					    type: req.body.type,
 					    date: req.body.date
 			        });
+					// logger.info('new message is : ' , message);
 			        message.save(function(err, result) {
 			            if (err) {
 			                return res.status(500).json({
@@ -64,6 +77,7 @@ module.exports = function(io){
 			            }
 			            setTimeout(function(){
 			            	io.sockets.emit('messageSaved'+req.body.sender+'->'+req.body.receiver[0]);
+							logger.info('hello:'+req.body.receiver[0]);
 			            	io.sockets.emit('hello:'+req.body.receiver[0],req.body.sender);
 			            },100);
 			            res.status(201).json({
@@ -145,7 +159,7 @@ module.exports = function(io){
 				}
 				else{
 					Message.find({sender:sender,receiver:[decoded.user.email],seen:false}).count(function(err, count){
-					    console.log("Number of docs: ", count );
+					    // logger.info("Number of docs: ", count );
 					    return res.status(200).json({
 	                        title: 'Got Count!!',
 	                        obj: {count: count}

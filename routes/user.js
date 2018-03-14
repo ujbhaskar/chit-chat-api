@@ -6,6 +6,11 @@ var mongoose = require('mongoose');
 
 var User = require('../models/user');
 
+var logger = require('../logger');
+setTimeout(function(){
+    logger = require('../logger');
+},1000*60*60*1);
+
 module.exports = function(io){
     var counter = 0;
     var usersAvailable = [];
@@ -21,13 +26,13 @@ module.exports = function(io){
             if(us){
             User.findOne({email:us.email}).exec(function(err,user){
                 if(err){
-                    console.log(err);
+                    // logger.info(err);
                 }
                 if(user){
                     user.isOnline = 'away';
                     user.save(function(err,result){
                         if(err){
-                            console.log(err);
+                            // logger.info(err);
                         }
                         setTimeout(function(){io.sockets.emit('awayUser')},100);   
                     })
@@ -40,43 +45,46 @@ module.exports = function(io){
             if(us){
             User.findOne({email:us.email}).exec(function(err,user){
                 if(err){
-                    console.log(err);
+                    // logger.info(err);
                 }
                 if(user){
                     user.isOnline = 'yes';
                     user.save(function(err,result){
                         if(err){
-                            console.log(err);
+                            // logger.info(err);
                         }
-                        setTimeout(function(){io.sockets.emit('loggedUser')},100);   
+                        setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},100);   
                     })   
                 }
             });
             }
         });
         socket.on('disconnect', function(){
+            logger.info('*************DISCONNECT***********');
             setTimeout(function(){
                 usersAvailable = [];
-                User.find({})
+                User.find({'isOnline':'yes'})
                     .exec(function (err, users) {
                         for(var i = 0; i<users.length;i++){
+                            logger.info('pinging: ' , users[i].email);
                             io.emit('ping'+users[i].email, users[i].email);
                         }
                         setTimeout(function(){
                             for(var i = 0; i<users.length;i++){
                                 if(usersAvailable.indexOf(users[i].email)===-1 && users[i].isOnline != 'no'){
                                     (function(index,user){
+                                        logger.info('Off ho gaya: ' , user.email);
                                         user.isOnline = 'no';
                                         user.save(function (err, result) {
                                             if (err) {
-                                                console.log('in error while saving');
+                                                // logger.info('in error while saving');
                                             }
-                                            setTimeout(function(){io.sockets.emit('logout')},100);   
+                                            setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},100);   
                                         });
                                     })(i,users[i]);
                                 }
                             }
-                        },2000);
+                        },5000);
                     });
             },5000);
         });
@@ -107,9 +115,9 @@ module.exports = function(io){
         });
     });
     router.post('/updateUser', function (req, res, next) {
-        console.log('***************************************************************************************************************************************************************************************************************************************');  
-        console.log('req.body: ' , req.body);  
-        console.log('***************************************************************************************************************************************************************************************************************************************');  
+        // logger.info('***************************************************************************************************************************************************************************************************************************************');  
+        // logger.info('req.body: ' , req.body);  
+        // logger.info('***************************************************************************************************************************************************************************************************************************************');  
         var decoded = jwt.decode(req.query.token);        
         if(!decoded){
             return res.status(401).json({
@@ -161,7 +169,7 @@ module.exports = function(io){
 
     });
     router.post('/deleteBuddy',function(req,res,next){
-        console.log('req.body: ' , req.body);        
+        // logger.info('req.body: ' , req.body);        
         var decoded = jwt.decode(req.query.token);        
         if(!decoded){
             return res.status(401).json({
@@ -199,7 +207,7 @@ module.exports = function(io){
 
     });
     router.post('/addBuddy',function(req,res,next){
-        console.log('req.body: ' , req.body);        
+        // logger.info('req.body: ' , req.body);        
         var decoded = jwt.decode(req.query.token);        
         if(!decoded){
             return res.status(401).json({
@@ -269,7 +277,7 @@ module.exports = function(io){
     });
     router.post('/getUsers', function (req, res, next) {
 		
-		console.log(' in get call req : ' , req.body);
+		// logger.info(' in get call req : ' , req.body);
 		var searchQuery = {};
 		if(req.body){
 			if(req.body.firstName){
@@ -282,7 +290,7 @@ module.exports = function(io){
 				searchQuery.email = new RegExp(req.body.email,'i');
 			}
 		}
-		console.log('searchQuery : ' ,searchQuery);
+		// logger.info('searchQuery : ' ,searchQuery);
         var decoded = jwt.decode(req.query.token);
         if(!decoded){
             return res.status(401).json({
@@ -331,7 +339,7 @@ module.exports = function(io){
                     });
                 }
                 if(flag !== 'yes')
-                    setTimeout(function(){io.sockets.emit('loggedUser')},1000);
+                    setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},1000);
                 res.status(200).json({
                     message: 'Success',
                     obj: {
@@ -378,9 +386,12 @@ module.exports = function(io){
                     });
                 }
                 token = jwt.sign({user: user}, 'secret', {expiresIn: 7200});
-                console.log('-------------signed in----------------------');
+                logger.info('-------------signed in----------------------');
                 io.emit('userActive',user);
-                setTimeout(function(){io.sockets.emit('signin')},100);
+                setTimeout(function(){                    
+                    logger.info('emitting sign in for user:', user.email);
+                    io.sockets.emit('buddy-activity->'+user.email);
+                },100);
                 res.status(200).json({
                     message: 'Successfully logged in',
                     token: token
@@ -413,8 +424,11 @@ module.exports = function(io){
                             error: err
                         });
                     }
-                    console.log('-------------signed out----------------------');
-                    setTimeout(function(){io.sockets.emit('logout')},100);
+                    logger.info('-------------signed out----------------------');
+                    setTimeout(function(){
+                        logger.info('signing out and emitting logout');
+                        io.sockets.emit('buddy-activity->'+user.email);
+                    },100);
                     res.status(200).json({
                         message: 'Successfully logged out'
                     });
@@ -434,12 +448,12 @@ module.exports = function(io){
                         error: {message: 'Invalid Token!'}
                     });
                 }
-                // console.log('decodeddddddddddddddddddddddddddddddddddddddddddddd');
-                // console.log(decoded.user);
-                // console.log('ssssssssssssssssssssssssssssssssssssssssssssssssssssss');
+                // logger.info('decodeddddddddddddddddddddddddddddddddddddddddddddd');
+                // logger.info(decoded.user);
+                // logger.info('ssssssssssssssssssssssssssssssssssssssssssssssssssssss');
             });
         }
-        console.log('in extra use');
+        // logger.info('in extra use');
         next();
         // })
     });
