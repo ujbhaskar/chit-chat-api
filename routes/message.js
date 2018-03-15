@@ -47,6 +47,10 @@ module.exports = function(io){
     			}
     		});
     	});
+		socket.on('typing',function(obj){
+			logger.info('typing obj: ' + 'typing:'+obj.sender+'>'+obj.receiver);
+			io.sockets.emit('typing:'+obj.sender+'>'+obj.receiver);
+		});
     });
 
 	router.post('/', function(req, res, next) {		
