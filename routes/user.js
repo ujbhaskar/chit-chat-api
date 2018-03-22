@@ -3,6 +3,11 @@ var router = express.Router();
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 var mongoose = require('mongoose');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
+const GridFsStorage = require('multer-gridfs-storage');
+const Grid = require('gridfs-stream');
 
 var User = require('../models/user');
 
@@ -11,7 +16,66 @@ setTimeout(function(){
     logger = require('../logger');
 },1000*60*60*1);
 
-module.exports = function(io){
+module.exports = function(io,conn){
+    let gfs;
+    //create grid stream
+    conn.once('open',()=>{
+        gfs = Grid(conn.db, mongoose.mongo);
+        gfs.collection('uploads');
+    });
+
+    var os = require('os');
+    var ifaces = os.networkInterfaces();
+    var ip = '';
+    Object.keys(ifaces).forEach(function (ifname) {
+    var alias = 0;
+    ifaces[ifname].forEach(function (iface) {
+        if ('IPv4' !== iface.family || iface.internal !== false) {
+        // skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
+        return;
+        }
+        if (alias >= 1) {
+        // this single interface has multiple ipv4 addresses
+        ip = iface.address;
+        //console.log(ifname + ':' + alias, iface.address);
+        } else {
+        // this interface has only one ipv4 adress
+        ip = iface.address;
+        //console.log(ifname, iface.address);
+        }
+        ++alias;
+    });
+    });
+    console.log('got ip as : ', ip);
+
+    // mongoose.connect('127.0.0.1:27017/kdcd');
+    const mongoURI =  "mongodb://"+ip+':27017/kdcd';
+
+    //create storage engine
+    const storage = new GridFsStorage({
+        url: mongoURI,
+        file: (req, file) => {
+            return new Promise((resolve, reject) => {
+            crypto.randomBytes(16, (err, buf) => {
+                if (err) {
+                    console.log('err: ' , err);
+                    return reject(err);
+                }
+                console.log('buf : ' , buf.toString('hex'));
+                console.log('path.extname(file.originalname) : ' , path.extname(file.originalname));
+                const filename = buf.toString('hex') + '||' + file.originalname;// + '||' +  + path.extname(file.originalname);
+                const fileInfo = {
+                filename: filename,
+                bucketName: 'uploads'
+                };
+                console.log('fileInfo: ', fileInfo);
+                resolve(fileInfo);
+            });
+            });
+        }
+    });
+    const upload = multer({ storage }); 
+
     var counter = 0;
     var usersAvailable = [];
     var onlineUsers = [];
@@ -61,34 +125,106 @@ module.exports = function(io){
         });
         socket.on('disconnect', function(){
             logger.info('*************DISCONNECT***********');
-            setTimeout(function(){
-                usersAvailable = [];
-                User.find({'isOnline':'yes'})
-                    .exec(function (err, users) {
-                        for(var i = 0; i<users.length;i++){
-                            logger.info('pinging: ' , users[i].email);
-                            io.emit('ping'+users[i].email, users[i].email);
-                        }
-                        setTimeout(function(){
+            var tick = 2;
+            function checkOnlineUsers(){
+                setTimeout(function(){
+                    usersAvailable = [];
+                    User.find({})
+                        .exec(function (err, users) {
                             for(var i = 0; i<users.length;i++){
-                                if(usersAvailable.indexOf(users[i].email)===-1 && users[i].isOnline != 'no'){
-                                    (function(index,user){
-                                        logger.info('Off ho gaya: ' , user.email);
-                                        user.isOnline = 'no';
-                                        user.save(function (err, result) {
-                                            if (err) {
-                                                // logger.info('in error while saving');
-                                            }
-                                            setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},100);   
-                                        });
-                                    })(i,users[i]);
-                                }
+                                logger.info('pinging: ' , users[i].email);
+                                io.emit('ping'+users[i].email, users[i].email);
                             }
-                        },5000);
-                    });
-            },5000);
+                            setTimeout(function(){
+                                for(var i = 0; i<users.length;i++){
+                                    if(usersAvailable.indexOf(users[i].email)===-1 && users[i].isOnline != 'no'){
+                                        (function(index,user){
+                                            logger.info('Off ho gaya: ' , user.email);
+                                            user.isOnline = 'no';
+                                            user.save(function (err, result) {
+                                                if (err) {
+                                                    // logger.info('in error while saving');
+                                                }
+                                                setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},100);   
+                                            });
+                                        })(i,users[i]);
+                                    }
+                                }
+                                tick--;
+                                if(tick>0){
+                                    checkOnlineUsers();
+                                }
+                            },5000);
+                        });
+                },5000);
+            }
+            checkOnlineUsers();
         });
     });
+
+    router.post('/uploadImage', upload.single('file'), (req,res,next)=>{
+        console.log('*********************************************');
+        console.log('in uploadImage');
+        console.log('*********************************************');
+                
+        var decoded = jwt.decode(req.query.token);        
+        if(!decoded){
+            return res.status(401).json({
+                title: 'Not Authenticated',
+                error: {message: 'Invalid Token!'}
+            });
+        }
+              
+        User.findOne({email:decoded.user.email})
+            .exec(function (err, user) {
+                if (err) {
+                    return res.status(500).json({
+                        title: 'An error occurred',
+                        error: err
+                    });
+                }
+                user.profilePicImage = req.file.filename;
+                user.save(function(err, result) {
+                    if (err) {
+                        return res.status(500).json({
+                            title: 'An error occurred',
+                            error: err
+                        });
+                    }
+                    res.status(200).json({
+                        message: 'Profile Pic added!!',
+                        obj: result
+                    });
+                });
+            });
+
+        // res.status(200).json({file: req.file});
+        // res.redirect('/');
+    });
+    
+    router.get('/image/:filename', (req,res,next)=>{
+        gfs.files.findOne({filename: req.params.filename},(err,file)=>{
+            if(!file || file.length === 0){
+                return res.status(404).json({
+                    err: 'No file exists'
+                });
+            }
+            // return res.json(file);
+            //Check if image
+            if(file.contentType === 'image/png' || file.contentType === 'image/jpeg'){
+                //Read output to browser
+                const readStream = gfs.createReadStream(file.filename);
+                readStream.pipe(res);            
+            }
+            else{
+                res.status(404).json({
+                    err:'Not an image!!'
+                })
+            }
+        });
+
+    });
+
     router.post('/', function (req, res, next) {
         setTimeout(function(){io.sockets.emit('saveUser')},1000);
         var user = new User({
@@ -350,7 +486,8 @@ module.exports = function(io){
                         buddies: user.buddies,
                         city: user.city,
                         country: user.country,
-                        state: user.state
+                        state: user.state,
+                        profilePicImage: user.profilePicImage
                     }
                 });
             });
