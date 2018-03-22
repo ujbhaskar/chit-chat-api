@@ -11,7 +11,8 @@ var schema = new Schema({
     buddies: [{type:String}],
     city: {type:String},
     state: {type:String},
-    country: {type:String}
+    country: {type:String},
+    profilePicImage: {type:String}
 }, { usePushEach: true });
 
 schema.plugin(mongooseUniqueValidator);

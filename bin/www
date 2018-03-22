@@ -4,7 +4,8 @@
  * Module dependencies.
  */
 
-var app = require('../app');
+var app = require('../app').app;
+var mongoConnection = require('../app').conn;
 var debug = require('debug')('kdcd:server');
 var http = require('http');
 
@@ -27,7 +28,7 @@ var io = require('socket.io')(server, { origins: '*:*'});
  */
 
 var index = require('../routes/index');
-var user = require('../routes/user')(io);
+var user = require('../routes/user')(io,mongoConnection);
 var message = require('../routes/message')(io);
 
 app.use('/', index);

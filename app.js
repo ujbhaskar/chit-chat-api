@@ -33,8 +33,10 @@ Object.keys(ifaces).forEach(function (ifname) {
 console.log('got ip as : ', ip);
 
 // mongoose.connect('127.0.0.1:27017/kdcd');
-mongoose.connect(ip+':27017/kdcd');
+const mongoURI = ip+':27017/kdcd'; //"mongodb://127.0.0.1:27017/mongouploads";
+mongoose.connect(mongoURI);
 
+const conn = mongoose.createConnection(mongoURI)
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
@@ -54,4 +56,5 @@ app.use(function (req, res, next) {
     next();
 });
 
-module.exports = app;
+exports.app = app;
+exports.conn = conn;
