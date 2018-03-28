@@ -33,7 +33,8 @@ Object.keys(ifaces).forEach(function (ifname) {
 console.log('got ip as : ', ip);
 
 // mongoose.connect('127.0.0.1:27017/kdcd');
-const mongoURI = ip+':27017/kdcd'; //"mongodb://127.0.0.1:27017/mongouploads";
+// const mongoURI = ip+':27017/kdcd';
+const mongoURI = "mongodb://127.0.0.1:27017/kdcd";
 mongoose.connect(mongoURI);
 
 const conn = mongoose.createConnection(mongoURI)

@@ -395,7 +395,7 @@ module.exports = function(io,conn){
                         error: err
                     });
                 }
-                User.find({email:{$in: user.buddies}}).select('firstName lastName email isOnline city country -_id')
+                User.find({email:{$in: user.buddies}}).select('firstName lastName email isOnline city country profilePicImage -_id')
                 .exec(function (err, users) {
                     if (err) {
                         return res.status(500).json({
@@ -434,7 +434,7 @@ module.exports = function(io,conn){
                 error: {message: 'Invalid Token!'}
             });
         }
-        User.find(searchQuery).where("email").ne(decoded.user.email).select('firstName lastName email isOnline city country -_id')
+        User.find(searchQuery).where("email").ne(decoded.user.email).select('firstName lastName email isOnline city country profilePicImage -_id')
             .exec(function (err, users) {
                 if (err) {
                     return res.status(500).json({
