@@ -55,10 +55,10 @@ module.exports = function(io,conn){
     const storage = new GridFsStorage({
         url: mongoURI,
         file: (req, file) => {
+            console.log(file);
             return new Promise((resolve, reject) => {
             crypto.randomBytes(16, (err, buf) => {
                 if (err) {
-                    console.log('err: ' , err);
                     return reject(err);
                 }
                 console.log('buf : ' , buf.toString('hex'));
@@ -163,9 +163,10 @@ module.exports = function(io,conn){
     });
 
     router.post('/uploadImage', upload.single('file'), (req,res,next)=>{
-        console.log('*********************************************');
-        console.log('in uploadImage');
-        console.log('*********************************************');
+        console.log('in /uploadImage api---------------------->');
+        logger.info('*********************************************');
+        logger.info('in uploadImage');
+        logger.info('*********************************************');
                 
         var decoded = jwt.decode(req.query.token);        
         if(!decoded){
@@ -465,32 +466,34 @@ module.exports = function(io,conn){
                     error: err
                 });
             }
-            var flag = user.isOnline;
-            user.isOnline = 'yes';
-            user.save(function (err, result) {
-                if (err) {
-                    return res.status(500).json({
-                        title: 'An error occurred',
-                        error: err
-                    });
-                }
-                if(flag !== 'yes')
-                    setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},1000);
-                res.status(200).json({
-                    message: 'Success',
-                    obj: {
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        email: user.email,
-                        isOnline: user.isOnline,
-                        buddies: user.buddies,
-                        city: user.city,
-                        country: user.country,
-                        state: user.state,
-                        profilePicImage: user.profilePicImage
+            if(user){
+                var flag = user.isOnline;
+                user.isOnline = 'yes';
+                user.save(function (err, result) {
+                    if (err) {
+                        return res.status(500).json({
+                            title: 'An error occurred',
+                            error: err
+                        });
                     }
+                    if(flag !== 'yes')
+                        setTimeout(function(){io.sockets.emit('buddy-activity->'+user.email)},1000);
+                    res.status(200).json({
+                        message: 'Success',
+                        obj: {
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            email: user.email,
+                            isOnline: user.isOnline,
+                            buddies: user.buddies,
+                            city: user.city,
+                            country: user.country,
+                            state: user.state,
+                            profilePicImage: user.profilePicImage
+                        }
+                    });
                 });
-            });
+            }
         })
     });
 
